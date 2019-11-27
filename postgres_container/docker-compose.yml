@@ -1,0 +1,16 @@
+version: "3"
+services:
+  db:
+    container_name: "pg-container"
+    image: "postgres"
+    #Setup the username, password, and database name. You can changes these values.
+    environment:
+      #If POSTGRES_USER is not defined, it will use postgres
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_MULTIPLE_DATABASES=harvest_db,webservice_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./pg-init-scripts:/docker-entrypoint-initdb.d
+      - ./postgres-data:/var/lib/postgresql/data

@@ -1,0 +1,3 @@
+BUILD DOCKER POSTGRESQL
+docker pull postgres
+mkdir -p C:\Users\TEU_USER\Documents\Python Training\pg-container
