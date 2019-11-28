@@ -1,8 +1,12 @@
-import psycopg2
+import configparser
 import getpass
 import logging
+import os
+import psycopg2
 
-logger = logging.get_logger(__name__)
+
+logger = logging.getLogger(__name__)
+
 
 def connect_to_db(username, hostname, password, database):
     """
@@ -19,12 +23,13 @@ def connect_to_db(username, hostname, password, database):
         connection = psycopg2.connect(user=username,
                                       password=password,
                                       host=hostname,
-                                      port="54320",
+                                      port="5432",
                                       database=database)
         connection.autocommit = True
         return connection
     except (Exception, psycopg2.Error) as error:
         logger.error(f"Error while connecting to PostgreSQL: {error}")
+
 
 def create_db(db_name, username, hostname):
     """
@@ -50,7 +55,8 @@ def create_db(db_name, username, hostname):
 
     return connect_to_db(username, hostname, password, db_name)
 
-def write_to_db(file_list, username, hostname):
+
+def write_to_db(app_name, app_version, db_name, username, hostname ):
     """
     Insert list of file to database.
     :param file_list: List of files.
@@ -58,9 +64,12 @@ def write_to_db(file_list, username, hostname):
     :param hostname: DB hostname.
     :return: None
     """
-    connection = create_db("listdir", username, hostname)
+    config = configparser.ConfigParser()
+    path = os.path.abspath(os.path.dirname(__file__))
+    config.read(f"{path}{os.sep}config.ini")
+    connection = create_db(db_name, username, hostname)
     cursor = connection.cursor()
-
+    connection.commit()
     logger.info("Checking for existing table")
     query = '''SELECT to_regclass('public.output');'''
     cursor.execute(query)
@@ -69,31 +78,17 @@ def write_to_db(file_list, username, hostname):
 
     else:
         logger.info("Table missing, creating new one")
-
-        create_table_query = '''CREATE TABLE output
-                          (ID SERIAL PRIMARY KEY,
-                          FILE              TEXT    NOT NULL,
-                          DIRECTORY         TEXT    NOT NULL,
-                          SIZE              TEXT    NOT NULL,
-                          MD5               TEXT    NOT NULL,
-                          SHA1              TEXT    NOT NULL); '''
-
+        tb_name = config['database']['table_name']
+        create_table_query = f"CREATE TABLE {tb_name} (ID SERIAL PRIMARY KEY, " \
+                             f"APP_NAME TEXT NOT NULL, APP_VERSION TEXT NOT NULL);"
         cursor.execute(create_table_query)
-        logger.info("Table created")
+        logger.info(f"Table {tb_name} created")
 
+    logger.info(f"Writing to {db_name} database")
+    query = '''INSERT INTO output
+            (APP_NAME, APP_VERSION) 
+            VALUES (%(app_name)s, %(app_version)s)'''
 
-
-    logger.info("Writing to database")
-    query = '''INSERT INTO 
-
-                    output
-
-                    (FILE, DIRECTORY, SIZE, MD5, SHA1) 
-
-                VALUES 
-
-                    (%(file_name)s, %(parent_path)s, %(file_size)s, %(md5)s, %(sha1)s)'''
-
-    cursor.executemany(query, file_list)
+    cursor.executemany(query, app_name, app_version)
     cursor.close()
     connection.close()

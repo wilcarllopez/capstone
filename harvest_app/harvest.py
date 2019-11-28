@@ -1,5 +1,5 @@
 import configparser
-import db_manage.py
+import db_manage
 import logging
 import logging.config
 import os
@@ -23,6 +23,7 @@ def link_details(url):
     index = re.search("v[0-9]*\.[0-9]*", details.split("-")[0])
     app_name = details.split("-")[0][0:index.start()].replace("\n", "")
     app_version = details.split("-")[0][index.start():].replace("\n", "")
+    save_to_db(app_name, app_version)
     return app_name, app_version
 
 
@@ -42,6 +43,10 @@ def download_files(url):
     for link in url_list:
         print(link)
 
+
+def save_to_db(app_name, app_version):
+    db_manage.write_to_db(app_name, app_version, config['database']['db_name'], config['database']['username'],
+                          config['database']['hostname'])
 
 def setup_logging(default_path='logging_config.yml', default_level=logging.INFO, env_key='LOG_CFG'):
     """Setting up the logging config"""
@@ -129,3 +134,4 @@ if __name__ == '__main__':
     config.read(f"{path}{os.sep}config.ini")
     base_url = config['default']['harvest_url']
     main(base_url)
+

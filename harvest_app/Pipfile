@@ -9,6 +9,7 @@ verify_ssl = true
 beautifulsoup4 = "*"
 requests = "*"
 pyyaml = "*"
+psycopg2 = "*"
 
 [requires]
 python_version = "3.6"
