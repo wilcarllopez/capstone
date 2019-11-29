@@ -23,8 +23,8 @@ def link_details(url):
     index = re.search("v[0-9]*\.[0-9]*", details.split("-")[0])
     app_name = details.split("-")[0][0:index.start()].replace("\n", "")
     app_version = details.split("-")[0][index.start():].replace("\n", "")
-    save_to_db(app_name, app_version)
-    return app_name, app_version
+    # save_to_db(app_name, app_version)
+    print (app_name, app_version)
 
 
 def download_files(url):
@@ -35,18 +35,19 @@ def download_files(url):
     url_list = []
     r = requests.get(url)
     soup = BeautifulSoup(r.text, 'html.parser')
-    td = soup.find('td', recursive=True)
-    links = td.find_all("a", class_="downloadline", href=True)
-    for link in links:
-        print(link)
-        url_list.append(link)
-    for link in url_list:
-        print(link)
+    td = soup.find_parent('table', recursive=True)
+    suffix = ["zip", "exe"]
+    for link in soup.find_all("a", href=True):
+        if "http" not in link.get('href'):
+            for suff in suffix:
+                if suff in link.get('href'):
+                    print(link)
 
 
 def save_to_db(app_name, app_version):
     db_manage.write_to_db(app_name, app_version, config['database']['db_name'], config['database']['username'],
                           config['database']['hostname'])
+
 
 def setup_logging(default_path='logging_config.yml', default_level=logging.INFO, env_key='LOG_CFG'):
     """Setting up the logging config"""
@@ -118,9 +119,10 @@ def main(base_url):
             logger.info(f"{counter} - {link} appended to the final list")
 
     for link in auxiliary_list:
+        download_files(link)
         link_details(link)
         # write_to_file(link)
-        download_files(link)
+        # download_files(link)
         # write_to_db()
 
     return auxiliary_list
@@ -132,6 +134,6 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     path = os.path.abspath(os.path.dirname(__file__))
     config.read(f"{path}{os.sep}config.ini")
-    base_url = config['default']['harvest_url']
+    base_url = "https://www.nirsoft.net/"
     main(base_url)
 
