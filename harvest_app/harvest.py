@@ -18,34 +18,79 @@ def link_details(url):
     :return: app_name, version
     """
     r = requests.get(url)
-    soup = BeautifulSoup(r.content, 'html.parser')
+    soup = BeautifulSoup(r.text, 'html.parser')
     details = soup.find(text=re.compile("v[0-9]*\.[0-9]*"))
     index = re.search("v[0-9]*\.[0-9]*", details.split("-")[0])
-    app_name = details.split("-")[0][0:index.start()].replace("\n", "")
-    app_version = details.split("-")[0][index.start():].replace("\n", "")
-    # save_to_db(app_name, app_version)
-    print (app_name, app_version)
+    app_name = details.split("-")[0][0:index.start()].replace("\n", "").rstrip()
+    app_version = details.split("-")[0][index.start():].replace("\n", "").rstrip()
+    row = (str(app_name), str(app_version))
+    # save_to_db(row)
+    print(row)
 
 
-def download_files(url):
+def find_translations(url, base_url):
+    r = requests.get(url)
+    soup = BeautifulSoup(r.text, 'lxml')
+    td = soup.find(class_="utiltableheader").find_parent("table")
+    if td is not None:
+        tr = td.find_all("tr")[1:]
+        for item in tr:
+            language = item.find_all("td")[0].find("a").getText()
+            version = item.find_all("td")[-1].getText().replace("\n","")
+            print(version)
+
+
+
+
+def get_download_files(url, base_url):
     """
     :param url: Download link
+    :param base_url: Base url to request
     :return:
     """
     url_list = []
     r = requests.get(url)
     soup = BeautifulSoup(r.text, 'html.parser')
-    td = soup.find_parent('table', recursive=True)
     suffix = ["zip", "exe"]
     for link in soup.find_all("a", href=True):
         if "http" not in link.get('href'):
             for suff in suffix:
                 if suff in link.get('href'):
-                    print(link)
+                    url_list.append(link.get('href'))
+    download_files(url_list, base_url)
+    return url_list
 
 
-def save_to_db(app_name, app_version):
-    db_manage.write_to_db(app_name, app_version, config['database']['db_name'], config['database']['username'],
+def download_files(url_list, base_url):
+    path = config['download']['path']
+    for link in url_list:
+        if "trans" in link:
+            r = requests.get(f"{base_url}/utils/{link}")
+            logger.info(f"Downloading file from: {base_url}/utils/{link}")
+            filename = link.split("/")[-1]
+            directory = f"{os.path.abspath(os.path.dirname(__name__))}{os.sep}{path}{os.sep}{filename}"
+            if os.path.exists(directory):
+                logger.info("File already exists")
+                pass
+            else:
+                with open(directory, 'wb') as f:
+                    f.write(r.content)
+        else:
+            link = link.replace("..", "")
+            r = requests.get(f"{base_url}{link}")
+            logger.info(f"Downloading file from: {base_url}{link}")
+            filename = link.split("/")[-1]
+            directory = f"{os.path.abspath(os.path.dirname(__name__))}{os.sep}{path}{os.sep}{filename}"
+            if os.path.exists(directory):
+                logger.info("File already exists")
+                pass
+            else:
+                with open(directory, 'wb') as f:
+                    f.write(r.content)
+
+
+def save_to_db(row):
+    db_manage.write_to_db(str(row), config['database']['db_name'], config['database']['username'],
                           config['database']['hostname'])
 
 
@@ -119,10 +164,10 @@ def main(base_url):
             logger.info(f"{counter} - {link} appended to the final list")
 
     for link in auxiliary_list:
-        download_files(link)
+        # get_download_files(link, base_url)
+        find_translations(link, base_url)
         link_details(link)
         # write_to_file(link)
-        # download_files(link)
         # write_to_db()
 
     return auxiliary_list
@@ -134,6 +179,5 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     path = os.path.abspath(os.path.dirname(__file__))
     config.read(f"{path}{os.sep}config.ini")
-    base_url = "https://www.nirsoft.net/"
+    base_url = config['default']['harvest_url']
     main(base_url)
-

@@ -4,7 +4,6 @@ import logging
 import os
 import psycopg2
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -44,7 +43,7 @@ def create_db(db_name, username, hostname):
     cursor = connection.cursor()
 
     logger.info("Checking for existing database")
-    cursor.execute(f"SELECT datname FROM pg_catalog.pg_database WHERE datname = '{db_name}';")
+    cursor.execute(f"SELECT exists(SELECT 1 from pg_catalog.pg_database WHERE datname = '{db_name}');")
     if cursor.fetchone():
         logger.info("Database exists")
     else:
@@ -56,7 +55,7 @@ def create_db(db_name, username, hostname):
     return connect_to_db(username, hostname, password, db_name)
 
 
-def write_to_db(app_name, app_version, db_name, username, hostname ):
+def write_to_db(row, db_name, username, hostname):
     """
     Insert list of file to database.
     :param file_list: List of files.
@@ -71,7 +70,7 @@ def write_to_db(app_name, app_version, db_name, username, hostname ):
     cursor = connection.cursor()
     connection.commit()
     logger.info("Checking for existing table")
-    query = '''SELECT to_regclass('public.output');'''
+    query = f"SELECT to_regclass('{config['database']['table_name']}');"
     cursor.execute(query)
     if cursor.fetchone()[0]:
         logger.info("Table found")
@@ -79,7 +78,7 @@ def write_to_db(app_name, app_version, db_name, username, hostname ):
     else:
         logger.info("Table missing, creating new one")
         tb_name = config['database']['table_name']
-        create_table_query = f"CREATE TABLE {tb_name} (ID SERIAL PRIMARY KEY, " \
+        create_table_query = f"CREATE TABLE IF NOT EXISTS {tb_name} (ID SERIAL PRIMARY KEY, " \
                              f"APP_NAME TEXT NOT NULL, APP_VERSION TEXT NOT NULL);"
         cursor.execute(create_table_query)
         logger.info(f"Table {tb_name} created")
@@ -87,8 +86,8 @@ def write_to_db(app_name, app_version, db_name, username, hostname ):
     logger.info(f"Writing to {db_name} database")
     query = '''INSERT INTO output
             (APP_NAME, APP_VERSION) 
-            VALUES (%(app_name)s, %(app_version)s)'''
+            VALUES (%s, %s)'''
 
-    cursor.executemany(query, app_name, app_version)
+    cursor.execute(query, row)
     cursor.close()
     connection.close()
