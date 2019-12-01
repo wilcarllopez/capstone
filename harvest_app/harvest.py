@@ -19,18 +19,39 @@ def link_details(url):
     """
     soup = request_get(url)
     details = soup.find(text=re.compile("v[0-9]*\.[0-9]*"))
+    logger.info(f"Getting download link details from {url}")
     if details is None:
+        row = ("","")
         pass
     else:
         index = re.search("v[0-9]*\.[0-9]*", details.split("-")[0])
         app_name = details.split("-")[0][0:index.start()].replace("\n", "")
         app_version = details.split("-")[0][index.start():].replace("\n", "")
         row = [app_name, app_version]
+    find_translations(url)
     # for link in row:
     # save_to_db(link)
 
     logger.info(row)
 
+
+def find_translations(link):
+    soup = request_get(link)
+    try:
+        identifier = soup.find_all("tr", class_="utiltableheader")[-1]
+        table = identifier.find_parent("table")
+        row = table.find_all("tr")[1:]  # [1:] to disregard the table header
+        translations = []
+        for item in row:
+            language = item.find_all("td")[0].find("a").get("href")
+            version = item.find_all("td")[-1].text.replace("\n", "")
+            translation_details = {"language": urljoin(link, language), "version": version}
+            logger.info(translation_details)
+            check_translations(translation_details)
+            translations.append(translation_details)
+    except:
+        translations = None
+    return translations
 
 def download_files(url):
     """
@@ -163,7 +184,7 @@ def main(base_url):
 
     for link in auxiliary_list:
         # get_download_files(link, base_url)
-        find_translations(link, base_url)
+
         link_details(link)
         # write_to_file(link)
         # download_files(link)
