@@ -17,51 +17,39 @@ def link_details(url):
     :param url: Download link
     :return: app_name, version
     """
-    r = requests.get(url)
-    soup = BeautifulSoup(r.text, 'html.parser')
+    soup = request_get(url)
     details = soup.find(text=re.compile("v[0-9]*\.[0-9]*"))
-    index = re.search("v[0-9]*\.[0-9]*", details.split("-")[0])
-    app_name = details.split("-")[0][0:index.start()].replace("\n", "").rstrip()
-    app_version = details.split("-")[0][index.start():].replace("\n", "").rstrip()
-    row = (str(app_name), str(app_version))
-    # save_to_db(row)
-    print(row)
+    if details is None:
+        pass
+    else:
+        index = re.search("v[0-9]*\.[0-9]*", details.split("-")[0])
+        app_name = details.split("-")[0][0:index.start()].replace("\n", "")
+        app_version = details.split("-")[0][index.start():].replace("\n", "")
+        row = [app_name, app_version]
+    # for link in row:
+    # save_to_db(link)
+
+    logger.info(row)
 
 
-def find_translations(url, base_url):
-    r = requests.get(url)
-    soup = BeautifulSoup(r.text, 'lxml')
-    td = soup.find(class_="utiltableheader").find_parent("table")
-    if td is not None:
-        tr = td.find_all("tr")[1:]
-        for item in tr:
-            language = item.find_all("td")[0].find("a").getText()
-            version = item.find_all("td")[-1].getText().replace("\n","")
-            print(version)
-
-
-
-
-def get_download_files(url, base_url):
+def download_files(url):
     """
     :param url: Download link
-    :param base_url: Base url to request
-    :return:
+    :return url_list: List of download links
     """
-    url_list = []
-    r = requests.get(url)
-    soup = BeautifulSoup(r.text, 'html.parser')
+    soup = request_get(url)
     suffix = ["zip", "exe"]
-    for link in soup.find_all("a", href=True):
-        if "http" not in link.get('href'):
-            for suff in suffix:
-                if suff in link.get('href'):
-                    url_list.append(link.get('href'))
-    download_files(url_list, base_url)
-    return url_list
+    # for link in soup.find_all("a", href=True):
+    #     if "http" not in link.get('href'):
+    #         for suff in suffix:
+    #             if suff in link.get('href'):
+    #                 print(link)
+    url_list = [a['href'] for suff in suffix for a in soup.find_all('a', href=True)
+                if "http" or "html" not in a.get('href') if suff in a.get('href')]
+    for link in url_list:
+        find_translations(link)
 
-
-def download_files(url_list, base_url):
+def get_download_files(url_list, base_url):
     path = config['download']['path']
     for link in url_list:
         if "trans" in link:
@@ -92,6 +80,23 @@ def download_files(url_list, base_url):
 def save_to_db(row):
     db_manage.write_to_db(str(row), config['database']['db_name'], config['database']['username'],
                           config['database']['hostname'])
+
+
+def request_get(url):
+    """
+    Request and get the url
+    :param url: URL provided
+    :return soup: parsed text
+    """
+    try:
+        r = requests.get(url)
+        r.raise_for_status()
+        logger.info(f"Successfully established a new connection to {url}")
+        soup = BeautifulSoup(r.text, 'lxml')
+    except requests.exceptions.ConnectionError:
+        logger.error(f"Failed to establish a new connection to {url}")
+        sys.exit(1)
+    return soup
 
 
 def setup_logging(default_path='logging_config.yml', default_level=logging.INFO, env_key='LOG_CFG'):
@@ -132,14 +137,7 @@ def main(base_url):
     :param base_url: Mirror link of Nirsoft.net
     :return: List of downloadable links
     """
-    try:
-        r = requests.get(base_url)
-        r.raise_for_status()
-        logger.info(f"Successfully established a new connection to {base_url}")
-    except requests.exceptions.ConnectionError:
-        logger.error(f"Failed to establish a new connection to {base_url}")
-        sys.exit(1)
-    soup = BeautifulSoup(r.text, 'html.parser')
+    soup = request_get(base_url)
     counter = 0
     download_links = []
     auxiliary_list = []
@@ -168,6 +166,7 @@ def main(base_url):
         find_translations(link, base_url)
         link_details(link)
         # write_to_file(link)
+        # download_files(link)
         # write_to_db()
 
     return auxiliary_list
@@ -179,5 +178,6 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     path = os.path.abspath(os.path.dirname(__file__))
     config.read(f"{path}{os.sep}config.ini")
-    base_url = config['default']['harvest_url']
+    base_url = "https://www.nirsoft.net/"
     main(base_url)
+
