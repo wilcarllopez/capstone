@@ -1,15 +1,20 @@
 import hashlib
 import os
 import urllib.request
-from app import app
-from flask import Flask, request, redirect, jsonify
+import app
+from flask import request, jsonify, Blueprint
 from werkzeug.utils import secure_filename
-from models import FileModel, FileSchema
+from models.FileModel import FileModel, FileSchema
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'exe', '.zip'}
 
 
 def allowed_file(filename):
+    """
+    Filter necessary files
+    :param filename:
+    :return: Sliced filename with allowed extension
+    """
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
@@ -54,26 +59,26 @@ file_schema = FileSchema
 def create():
     # check if the post request has the file part
     if 'file' not in request.files:
-        resp = jsonify({'message': 'No file part in the request'})
+        resp = jsonify({'Message': 'No file part in the request'})
         resp.status_code = 400
         return resp
     file = request.files['file']
     if file.filename == '':
-        resp = jsonify({'message': 'No file selected for uploading'})
+        resp = jsonify({'Message': 'No file selected for uploading'})
         resp.status_code = 400
         return resp
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
+        binary = request.read(file)
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
         data = file_schema.load(file)
         files = FileModel(data)
         files.save()
-
-        resp = jsonify({'message': 'File successfully uploaded'})
+        resp = jsonify({'Message': 'File successfully uploaded'})
         resp.status_code = 201
         return resp
     else:
-        resp = jsonify({'message': 'Allowed file types are txt, pdf, png, jpg, jpeg, gif'})
+        resp = jsonify({'Message': 'Allowed file types are txt, pdf, png, jpg, jpeg, gif'})
         resp.status_code = 400
         return resp
 
@@ -81,26 +86,28 @@ def create():
 @file_api.route('/', methods=['GET'])
 def get_all():
     files = FileModel.get_all_files()
+    if not files:
+        return jsonify({'Error': 'No files found'}, 404)
     ser_files = file_schema.dump(files, many=True)
-    return custom_response(ser_files, 200)
+    return jsonify(ser_files, 200)
 
 
 @file_api.route('/<string:md5>', methods=['GET'])
 def get_one(md5):
     file = FileModel.get_one_file_md5(md5)
     if not file:
-        return custom_response({'Error': 'File not found'}, 404)
+        return jsonify({'Error': 'File not found'}, 404)
     ser_file = file_schema.dump(file)
-    return custom_response(ser_file, 200)
+    return jsonify(ser_file, 200)
 
 
 @file_api.route('/<string:sha1>', methods=['GET'])
-def get_one(sha1):
+def get_one2(sha1):
     file = FileModel.get_one_file_sha(sha1)
     if not file:
-        return custom_response({'Error': 'File not found'}, 404)
+        return jsonify({'Error': 'File not found'}, 404)
     ser_file = file_schema.dump(file)
-    return custom_response(ser_file, 200)
+    return jsonify(ser_file, 200)
 
 
 @file_api.route('/<string:md5>', methods=['PUT'])
@@ -110,40 +117,32 @@ def update(md5):
     file = FileModel.get_one_file_md5(md5)
     file.update(data)
     ser_file = file_schema.dump(file)
-    return custom_response(ser_file, 200)
+    return jsonify(ser_file, 200)
 
 
 @file_api.route('/<string:sha1>', methods=['PUT'])
-def update(sha1):
+def update2(sha1):
     req_data = request.get_json()
     data = file_schema.load(req_data, partial=True)
     file = FileModel.get_one_file_sha(sha1)
     file.update(data)
     ser_file = file_schema.dump(file)
-    return custom_response(ser_file, 200)
+    return jsonify(ser_file, 200)
 
 
 @file_api.route('/<string:md5>', methods=['DELETE'])
 def delete(md5):
     file = FileModel.get_one_file(md5)
     if not file:
-        return custom_response({'Error': 'File not found'}, 404)
+        return jsonify({'Error': 'File not found'}, 404)
     file.delete()
-    return custom_response({'Message': 'File deleted'}, 201)
+    return jsonify({'Message': 'File deleted'}, 201)
 
 
-@file_api.route('/<string:md5>' or '/<string:sha1>', methods=['DELETE'])
-def delete(sha1):
+@file_api.route('/<string:sha1>', methods=['DELETE'])
+def delete2(sha1):
     file = FileModel.get_one_file(sha1)
     if not file:
-        return custom_response({'Error': 'File not found'}, 404)
+        return jsonify({'Error': 'File not found'}, 404)
     file.delete()
-    return custom_response({'Message': 'File deleted'}, 201)
-
-
-def custom_response(res, status_code):
-    return Response(
-        mimetype="application/json",
-        response=json.dumps(res),
-        status=status_code
-    )
+    return jsonify({'Message': 'File deleted'}, 201)

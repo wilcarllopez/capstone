@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 dotenv_path = join(dirname(__file__), '.env')
 load_dotenv(dotenv_path)
 
-
+SQLALCHEMY_TRACK_MODIFICATIONS = False
 class Development(object):
     """
     Development environment configuration

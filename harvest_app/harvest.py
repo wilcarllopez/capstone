@@ -17,51 +17,67 @@ def link_details(url):
     :param url: Download link
     :return: app_name, version
     """
-    r = requests.get(url)
-    soup = BeautifulSoup(r.text, 'html.parser')
+    soup = request_get(url)
     details = soup.find(text=re.compile("v[0-9]*\.[0-9]*"))
-    index = re.search("v[0-9]*\.[0-9]*", details.split("-")[0])
-    app_name = details.split("-")[0][0:index.start()].replace("\n", "").rstrip()
-    app_version = details.split("-")[0][index.start():].replace("\n", "").rstrip()
-    row = (str(app_name), str(app_version))
-    # save_to_db(row)
-    print(row)
+    logger.info(f"Getting download link details from {url}")
+    if details is None:
+        row = ("", "")
+        pass
+    else:
+        index = re.search("v[0-9]*\.[0-9]*", details.split("-")[0])
+        app_name = details.split("-")[0][0:index.start()].replace("\n", "")
+        app_version = details.split("-")[0][index.start():].replace("\n", "")
+        row = [app_name, app_version]
+    find_translations(url)
+    # for link in row:
+    # save_to_db(link)
+
+    logger.info(row)
 
 
-def find_translations(url, base_url):
-    r = requests.get(url)
-    soup = BeautifulSoup(r.text, 'lxml')
-    td = soup.find(class_="utiltableheader").find_parent("table")
-    if td is not None:
-        tr = td.find_all("tr")[1:]
-        for item in tr:
-            language = item.find_all("td")[0].find("a").getText()
-            version = item.find_all("td")[-1].getText().replace("\n","")
-            print(version)
+def find_translations(link):
+    soup = request_get(link)
+    try:
+        identifier = soup.find_all("tr", class_="utiltableheader")[-1]
+        table = identifier.find_parent("table")
+        row = table.find_all("tr")[1:]  # [1:] to disregard the table header
+        translations = []
+        for item in row:
+            language = item.find_all("td")[0].find("a").get("href").rsplit()
+            version = item.find_all("td")[-1].text.replace("\n", "").rsplit()
+            translation_details = {"language": urljoin(link, language), "version": version}
+            logger.info(translation_details)
+            check_translations(translation_details)
+            translations.append(translation_details)
+    except:
+        translations = None
+    return translations
 
 
-
-
-def get_download_files(url, base_url):
+def download_files(url, base_url):
     """
     :param url: Download link
-    :param base_url: Base url to request
-    :return:
+    :return url_list: List of download links
     """
-    url_list = []
-    r = requests.get(url)
-    soup = BeautifulSoup(r.text, 'html.parser')
+    soup = request_get(url)
     suffix = ["zip", "exe"]
+    url_list = []
     for link in soup.find_all("a", href=True):
         if "http" not in link.get('href'):
             for suff in suffix:
                 if suff in link.get('href'):
                     url_list.append(link.get('href'))
-    download_files(url_list, base_url)
+    # url_list = [a['href'] for suff in suffix for a in soup.find_all('a', href=True)
+    #             if "http" or "html" not in a.get('href') if suff in a.get('href')]
+    # print(url_list)
+    get_download_files(url_list, base_url)
+    for link in url_list:
+        find_translations(link)
+
     return url_list
 
 
-def download_files(url_list, base_url):
+def get_download_files(url_list, base_url):
     path = config['download']['path']
     for link in url_list:
         if "trans" in link:
@@ -92,6 +108,23 @@ def download_files(url_list, base_url):
 def save_to_db(row):
     db_manage.write_to_db(str(row), config['database']['db_name'], config['database']['username'],
                           config['database']['hostname'])
+
+
+def request_get(url):
+    """
+    Request and get the url
+    :param url: URL provided
+    :return soup: parsed text
+    """
+    try:
+        r = requests.get(url)
+        r.raise_for_status()
+        logger.info(f"Successfully established a new connection to {url}")
+        soup = BeautifulSoup(r.text, 'lxml')
+    except requests.exceptions.ConnectionError:
+        logger.error(f"Failed to establish a new connection to {url}")
+        sys.exit(1)
+    return soup
 
 
 def setup_logging(default_path='logging_config.yml', default_level=logging.INFO, env_key='LOG_CFG'):
@@ -132,14 +165,7 @@ def main(base_url):
     :param base_url: Mirror link of Nirsoft.net
     :return: List of downloadable links
     """
-    try:
-        r = requests.get(base_url)
-        r.raise_for_status()
-        logger.info(f"Successfully established a new connection to {base_url}")
-    except requests.exceptions.ConnectionError:
-        logger.error(f"Failed to establish a new connection to {base_url}")
-        sys.exit(1)
-    soup = BeautifulSoup(r.text, 'html.parser')
+    soup = request_get(base_url)
     counter = 0
     download_links = []
     auxiliary_list = []
@@ -153,7 +179,6 @@ def main(base_url):
             else:
                 fullpath = url['href']
             logger.info(f"Found the link: {fullpath}")
-            # download_files(fullpath)
             download_links.append(fullpath)  # appends the url to a list
 
     """Getting the unique value of download links"""
@@ -164,10 +189,10 @@ def main(base_url):
             logger.info(f"{counter} - {link} appended to the final list")
 
     for link in auxiliary_list:
-        # get_download_files(link, base_url)
-        find_translations(link, base_url)
         link_details(link)
         # write_to_file(link)
+        download_files(link, base_url)
+
         # write_to_db()
 
     return auxiliary_list
