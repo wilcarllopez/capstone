@@ -1,13 +1,16 @@
+import configparser
 import hashlib
 import os
+import pathlib
 import urllib.request
-import app
 from flask import request, jsonify, Blueprint
 from werkzeug.utils import secure_filename
 from models.FileModel import FileModel, FileSchema
 
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'exe', '.zip'}
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'exe', 'zip'}
 
+file_api = Blueprint('safe_files', __name__)
+file_schema = FileSchema
 
 def allowed_file(filename):
     """
@@ -51,10 +54,6 @@ def md5_hash(filepath):
     return md5
 
 
-file_api = Blueprint('safe_files', __name__)
-file_schema = FileSchema
-
-
 @file_api.route('/', methods=['POST'])
 def create():
     # check if the post request has the file part
@@ -68,12 +67,21 @@ def create():
         resp.status_code = 400
         return resp
     if file and allowed_file(file.filename):
+        directory = f"{os.path.abspath(os.path.dirname(__name__))}{os.sep}uploads"
         filename = secure_filename(file.filename)
-        binary = request.read(file)
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        binary = file.read()
+        file.save(f"{directory}{os.sep}{filename}")
+        filepath = f"{directory}{os.sep}{filename}"
+        md5 = md5_hash(filepath)
+        sha = sha1_hash(filepath)
         data = file_schema.load(file)
         files = FileModel(data)
-        files.save()
+        files.save(metadata={"filename": filename,
+                             "size": os.path.getsize(filepath),
+                             "sha1": sha, "md5": md5,
+                             "filetypes": pathlib.Path(filepath).suffix
+                             }
+                   )
         resp = jsonify({'Message': 'File successfully uploaded'})
         resp.status_code = 201
         return resp

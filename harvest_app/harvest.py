@@ -30,10 +30,10 @@ def request_get(url):
     try:
         resource = requests.get(url)
         resource.raise_for_status()
-        logger.info(f"Successfully established a new connection to {url}")
+        logger.info(f"Successfully established a connection to {url}")
         soup = BeautifulSoup(resource.text, 'lxml')
     except requests.exceptions.ConnectionError:
-        logger.error(f"Failed to establish a new connection to {url}")
+        logger.error(f"Failed to establish a connection to {url}")
         sys.exit(1)
     return soup
 
@@ -131,19 +131,22 @@ def get_translations(download_page_link):
     :param download_page_link:
     :return:
     """
-    different_link = ["http://54.174.36.110/utils/internet_explorer_cookies_view.html"]
-    if download_page_link not in different_link:
+    global translations
+    if download_page_link not in exemption_link:
         soup = request_get(download_page_link)
         identifier = soup.find_all("tr", class_="utiltableheader")[-1]
-        table = identifier.find_parent("table")
-        row = table.find_all("tr")[1:]  # [1:] to disregard the table header
-        translations = []
-        for item in row:
-            language = item.find_all("td")[0].find("a").get("href")
-            version = item.find_all("td")[-1].text.replace("\n", "")
-            translation_details = {"language": urljoin(download_page_link, language), "version": version}
-            check_translations(translation_details)
-            translations.append(translation_details)
+        if identifier is not None:
+            table = identifier.find_parent("table")
+            row = table.find_all("tr")[1:]  # [1:] to disregard the table header
+            translations = []
+            for item in row:
+                language = item.find_all("td")[0].find("a").get("href")
+                version = item.find_all("td")[-1].text.replace("\n", "")
+                translation_details = {"language": urljoin(download_page_link, language), "version": version}
+                check_translations(translation_details)
+                translations.append(translation_details)
+        else:
+            pass
         return translations
 
 
@@ -160,9 +163,9 @@ def get_links(base_url):
     for url in ul.find_all("a", href=True, recursive=True):
         if "nirsoft" not in str(url['href']):
             if "http" not in url['href'] and db.select_links(username, password, hostname, db_name, url['href']):
-                fullpath = str("{}{}".format(base_url, url['href']))  # url of the download page
+                fullpath = urljoin(base_url, url['href'])  # url of the download page
             else:
-                fullpath = str("{}{}".format(base_url, url['href']))
+                fullpath = urljoin(base_url, url['href'])
             logger.info(f"Found the download link {fullpath}")
             auxiliary_links.append(fullpath)  # get details of download pages then save to list
             # checker of link duplicates
@@ -231,4 +234,5 @@ if __name__ == '__main__':
     setup_logging()
     logger = logging.getLogger(__name__)
     base_url = config['default']['harvest_url']
-    main(base_url)
+    exemption_link = ["http://54.174.36.110/utils/internet_explorer_cookies_view.html"]
+    main("http://nirsoft.net")
