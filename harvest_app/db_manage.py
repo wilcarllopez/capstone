@@ -13,6 +13,7 @@ path = os.path.abspath(os.path.dirname(__file__))
 config.read(f"{path}{os.sep}config.ini")
 logger = logging.getLogger(__name__)
 
+
 def connect_to_db(username, hostname, password, database):
     """
     Connect to a database.
@@ -35,6 +36,7 @@ def connect_to_db(username, hostname, password, database):
 
     except (Exception, psycopg2.Error) as error:
         logger.error(f"Error while connecting to PostgreSQL: {error}")
+
 
 def create_db(db_name, username, hostname, password):
     """
@@ -61,20 +63,21 @@ def create_db(db_name, username, hostname, password):
     return connect_to_db(username, hostname, password, db_name)
 
 
-def establish_connection(user, password, host, dbname):
-    create_db(dbname, user, host, password)
-    connection = psycopg2.connect(user=user,
-                                  password=password,
-                                  host=host,
-                                  port="5432",
-                                  database=dbname)
-    return connection
+# def establish_connection(user, password, host, dbname):
+#     create_db(dbname, user, host, password)
+#     connection = psycopg2.connect(user=user,
+#                                   password=password,
+#                                   host=host,
+#                                   port="5432",
+#                                   database=dbname)
+#     return connection
 
 
 def create_table_details(user, password, host, dbname):
     global connection
+    global cursor
     try:
-        connection = establish_connection(user, password, host, dbname)
+        connection = connect_to_db(user, password, host, dbname)
         cursor = connection.cursor()
 
         create_table_query = f"CREATE TABLE IF NOT EXISTS {config['database']['tb_details']}" \
@@ -97,8 +100,10 @@ def create_table_details(user, password, host, dbname):
 
 
 def create_table_links(user, password, host, db_name):
+    global connection
+    global cursor
     try:
-        connection = establish_connection(user, password, host, db_name)
+        connection = connect_to_db(user, password, host, db_name)
 
         cursor = connection.cursor()
 
@@ -122,8 +127,9 @@ def create_table_links(user, password, host, db_name):
 
 def create_table_translations(user, password, host, db_name):
     global connection
+    global cursor
     try:
-        connection = establish_connection(user, password, host, db_name)
+        connection = connect_to_db(user, password, host, db_name)
 
         cursor = connection.cursor()
 
@@ -147,9 +153,11 @@ def create_table_translations(user, password, host, db_name):
 
 #  CREATE
 def insert_links(user, password, host, db_name, link):
+    global connection
+    global cursor
     try:
         create_table_links(user, password, host, db_name)
-        connection = establish_connection(user, password, host, db_name)
+        connection = connect_to_db(user, password, host, db_name)
 
         # connection.autocommit = True
         # connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
@@ -171,9 +179,11 @@ def insert_links(user, password, host, db_name, link):
 
 
 def insert_details(user, password, host, db_name, dl_dict):
+    global connection
+    global cursor
     try:
         create_table_details(user, password, host, db_name)
-        connection = establish_connection(user, password, host, db_name)
+        connection = connect_to_db(user, password, host, db_name)
 
         connection.autocommit = True
         connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
@@ -184,20 +194,21 @@ def insert_details(user, password, host, db_name, dl_dict):
         cursor.execute(insert_query, dl_dict)
         connection.commit()
     except (Exception, psycopg2.Error) as error:
-        # logger.error('Error while connecting to PostgreSQL: ' + str(error), exc_info=True)
-        print(error)
+        logger.error('Error while connecting to PostgreSQL: ' + str(error), exc_info=True)
     finally:
         # closing database connection.
         if (connection):
             cursor.close()
             connection.close()
-            # logger.info("PostgreSQL connection is closed")
+            logger.info("PostgreSQL connection is closed")
 
 
 def insert_translations(user, password, host, dbname, translation_dict):
+    global connection
+    global cursor
     try:
         create_table_details(user, password, host, dbname)
-        connection = establish_connection(user, password, host, dbname)
+        connection = connect_to_db(user, password, host, dbname)
 
         connection.autocommit = True
         connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
@@ -208,22 +219,22 @@ def insert_translations(user, password, host, dbname, translation_dict):
         cursor.execute(insert_query, translation_dict)
         connection.commit()
     except (Exception, psycopg2.Error) as error:
-        # logger.error('Error while connecting to PostgreSQL: ' + str(error), exc_info=True)
-        print(error)
+        logger.error('Error while connecting to PostgreSQL: ' + str(error), exc_info=True)
     finally:
         # closing database connection.
         if (connection):
             cursor.close()
             connection.close()
-            # logger.info("PostgreSQL connection is closed")
+            logger.info("PostgreSQL connection is closed")
 
 
 #  READ
 def select_links(user, password, host, dbname, link):  # check if the link is already in the table 'downloadlinks'
     global connection
+    global cursor
     try:
         create_table_links(user, password, host, dbname)
-        connection = establish_connection(user, password, host, dbname)
+        connection = connect_to_db(user, password, host, dbname)
         cursor = connection.cursor()
 
         search_query = f"SELECT * FROM {config['database']['tb_download']} WHERE Link = '{link}'"
@@ -234,20 +245,25 @@ def select_links(user, password, host, dbname, link):  # check if the link is al
         else:
             return False
     except (Exception, psycopg2.Error) as error:
-        print(error)
+        logger.error('Error while connecting to PostgreSQL: ' + str(error), exc_info=True)
     finally:
         if connection:
             cursor.close()
             connection.close()
+            logger.info("PostgreSQL connection is closed")
 
 
 def select_details(user, password, host, dbname, detail_dict):
+    global connection
+    global cursor
     try:
         create_table_details(user, password, host, dbname)
-        connection = establish_connection(user, password, host, dbname)
+        connection = connect_to_db(user, password, host, dbname)
         cursor = connection.cursor()
 
-        search_query = "SELECT * FROM {config['database']['tb_details']} WHERE Name='{}' and Version ='{}'".format(config['database']['tb_details'], detail_dict["name"],                                                                                  )
+        search_query = "SELECT * FROM {config['database']['tb_details']} " \
+                       "WHERE Name='{}' and Version ='{}'".format(config['database']['tb_details'],
+                                                                  detail_dict["name"], )
         cursor.execute(search_query)
         result = cursor.fetchone()
         if result is None:
@@ -255,22 +271,28 @@ def select_details(user, password, host, dbname, detail_dict):
         else:
             return False
     except (Exception, psycopg2.Error) as error:
-        print(error)
+        logger.error('Error while connecting to PostgreSQL: ' + str(error), exc_info=True)
     finally:
         if connection:
             cursor.close()
             connection.close()
+            logger.info("PostgreSQL connection is closed")
 
 
 def select_translations(user, password, host, dbname, translation_dict):
+    global connection
+    global cursor
     try:
         create_table_translations(user, password, host, dbname)
-        connection = establish_connection(user, password, host, dbname)
+        connection = connect_to_db(user, password, host, dbname)
         cursor = connection.cursor()
 
         search_query = "SELECT * " \
                        "FROM {} " \
-                       "WHERE Link='{}' and Version ='{}'".format(config['database']['tb_translation'],translation_dict["language"], translation_dict["version"])
+                       "WHERE Link='{}' and Version ='{}'"\
+            .format(config['database']['tb_translation'],
+                    translation_dict["language"],
+                    translation_dict["version"])
         cursor.execute(search_query)
         result = cursor.fetchone()
         if result is None:
@@ -278,11 +300,13 @@ def select_translations(user, password, host, dbname, translation_dict):
         else:
             return False
     except (Exception, psycopg2.Error) as error:
-        logger.error(error)
+        logger.error('Error while connecting to PostgreSQL: ' + str(error), exc_info=True)
     finally:
         if connection:
             cursor.close()
             connection.close()
+            logger.info("PostgreSQL connection is closed")
+
 
 def setup_logging(default_path='logging_config.yml', default_level=logging.INFO, env_key='LOG_CFG'):
     """Setting up the logging config"""
@@ -301,4 +325,7 @@ def setup_logging(default_path='logging_config.yml', default_level=logging.INFO,
     else:
         logging.basicConfig(level=default_level, stream=sys.stdout)
         print('Failed to load configuration file. Using default configs')
+
+
+# Initialize logger
 setup_logging()
