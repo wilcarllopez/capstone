@@ -102,3 +102,6 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+!/webservice/.env
+harvest_app/tests/
+webservice/tests/
