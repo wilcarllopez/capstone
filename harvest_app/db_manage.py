@@ -63,13 +63,18 @@ def create_db(user, password, host, port, dbname):
 
 
 def connect(user, password, host, port, dbname):
-    create_db(user, password, host, port, dbname)
-    connection = psycopg2.connect(user=user,
-                                  password=password,
-                                  host=host,
-                                  database=dbname,
-                                  port=port)
-    return connection
+    logger.info(f"Connecting to {dbname} database")
+    try:
+        connection = psycopg2.connect(user=user,
+                                      password=password,
+                                      host=host,
+                                      port=port,
+                                      dbname=dbname)
+        connection.autocommit = True
+        logger.info(f"Connected to {dbname} database")
+        return connection
+    except (Exception, psycopg2.Error) as error:
+        logger.error(f"Error while connecting to PostgreSQL: {error}")
 
 
 def create_table_details(user, password, host, port, dbname):
@@ -81,7 +86,7 @@ def create_table_details(user, password, host, port, dbname):
               (ID SERIAL PRIMARY KEY     NOT NULL,
               Name           VARCHAR    NOT NULL,
               Version        VARCHAR,
-              URL VARCHAR NOT NULL); '''
+              URL VARCHAR NOT NULL);'''
 
         cursor.execute(create_table_query)
         cursor.close()
@@ -127,7 +132,7 @@ def insert_links(user, password, host, port, dbname, link):
         connection = connect(user, password, host, port, dbname)
         connection.autocommit = True
         cursor = connection.cursor()
-        insert_query = f'''INSERT INTO {config['database']['download']} (Link) VALUES(%s)'''
+        insert_query = f'''INSERT INTO {config['database']['download']}(Link) VALUES(%s)'''
         cursor.execute(insert_query, (link,))
         cursor.close()
         connection.close()
@@ -142,8 +147,7 @@ def insert_details(user, password, host, port, dbname, dict):
         connection.autocommit = True
         connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         cursor = connection.cursor()
-        insert_query = "INSERT INTO {}(Name, Version)" \
-                       " VALUES(%(name)s,%(version)s,%(url)s)".format(config['database']['tb_details'])
+        insert_query = f'''INSERT INTO {config['database']['tb_details']}(Name, Version) VALUES(%(name)s,%(version)s,%(url)s)'''
         cursor.execute(insert_query, dict)
         cursor.close()
         connection.close()
@@ -158,8 +162,7 @@ def insert_translations(user, password, host, port, dbname, dict):
         connection.autocommit = True
         connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         cursor = connection.cursor()
-        insert_query = "INSERT INTO {}(Link, Version)" \
-                       " VALUES(%(language)s,%(version)s)".format(config['database']['tb_translation'])
+        insert_query = f'''INSERT INTO {config['database']['tb_translation']}(Link, Version) VALUES(%(language)s,%(version)s)'''
         cursor.execute(insert_query, dict)
         cursor.close()
         connection.close()
@@ -173,7 +176,7 @@ def select_links(user, password, host, port, dbname, link):  # check if the link
         connection = connect(user, password, host, port, dbname)
         connection.autocommit = True
         cursor = connection.cursor()
-        search_query = f"SELECT * FROM {config['database']['tb_download']} WHERE Link = '{link}'"
+        search_query = f'''SELECT * FROM {config['database']['tb_download']} WHERE Link = \'{link}\''''
         cursor.execute(search_query)
         result = cursor.fetchone()
         if result is None:
@@ -194,7 +197,7 @@ def select_all_links(user, password, host, port, dbname):
         connection = connect(user, password, host, port, dbname)
         connection.autocommit = True
         cursor = connection.cursor()
-        search_query = f"SELECT * FROM {config['database']['tb_download']}"
+        search_query = f'''SELECT * FROM {config['database']['tb_download']}'''
         cursor.execute(search_query)
         links_list = [r[1] for r in cursor.fetchall()]
         cursor.close()
@@ -210,10 +213,7 @@ def select_details(user, password, host, port, dbname, dict):
         connection = connect(user, password, host, port, dbname)
         connection.autocommit = True
         cursor = connection.cursor()
-        search_query = "SELECT * FROM {} WHERE Name='{}' and Version ='{}'".\
-            format(config['database']['tb_details'],
-                   dict["name"],
-                   dict["version"])
+        search_query = f'''SELECT * FROM {config['database']['tb_details']} WHERE Name='{dict["name"]}' and Version =\'{dict["version"]}\''''
         cursor.execute(search_query)
         result = cursor.fetchone()
         if result is None:
@@ -234,11 +234,7 @@ def select_translations(user, password, host, port, dbname, dict):
         connection = connect(user, password, host, port, dbname)
         connection.autocommit = True
         cursor = connection.cursor()
-        search_query = "SELECT * " \
-                       "FROM {} " \
-                       "WHERE Link='{}' and Version ='{}'".format(config['database']['tb_translation'],
-                                                                  dict["language"],
-                                                                  dict["version"])
+        search_query = f'''SELECT * FROM {config['database']['tb_translation']} WHERE Link=\'{dict["language"]}\' and Version =\'{dict["version"]}\''''
         cursor.execute(search_query)
         result = cursor.fetchone()
         if result is None:

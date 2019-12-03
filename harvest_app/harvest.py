@@ -53,20 +53,20 @@ def download_file(url, filename):
 
 
 def get_all_downloadable(download_link):
+    """
+    Get all
+    :param download_link:
+    :return:
+    """
     soup = request_get(download_link)
     name_version = get_details(download_link)
     db.insert_details(username, password, hostname, port, db_name, name_version)
     download_links = []
-    extension = ["zip", "exe"]
-    for file in soup.find_all("a", href=True):
-        link = file.get("href")
-        filename = link.split(".")[-1]
-        for ext in extension:
-            if ext in filename:
-                dl_link = urljoin(download_link, link)
-                download_links.append(dl_link)
-                download_file(dl_link, dl_link.rsplit("/", 1)[-1])
-
+    for tag in soup.select('a.downloadline'):
+        if tag['href'].endswith(('.zip', '.exe')):
+            download_links.append(urljoin(download_link, tag['href']))
+    for link in download_links:
+        download_file(link, link.split("/")[-1])
     return download_links
 
 
@@ -86,24 +86,21 @@ def check_version(download_link):
 
 def get_details(download_link):
     soup = request_get(download_link)
-    # search_regex = "v[0-9]*\.[0-9]*"
-    # details = soup.find(text=re.compile(search_regex))
-    # name_version = details.split("-")[0]
-    # index = re.search(search_regex, name_version)
-    # name = name_version[0:index.start()].replace("\n", "").rsplit()
-    # version = name_version[index.start():].replace("\n", "").rsplit()
-    # return {"name": name, "version": version}
     downloads = []
     string = soup.find(string=re.compile('v[0-9]*\.[0-9]*'))
-    search = re.search(re.compile('v[0-9]*\.[0-9]*'), string)
-    version = search.group(0)
-    name = string[:search.start()]
-    for tag in soup.select('a.downloadline'):
-        if tag['href'].endswith(('.zip', '.exe')):
-            downloads.append(urljoin(download_link, tag['href']))
-    return {'name': name.strip(),
-            'version': version[1:].strip(),
-            'url': downloads}
+    try:
+        search = re.search(re.compile('v[0-9]*\.[0-9]*'), string)
+        version = search.group(0)
+        name = string[:search.start()]
+        for tag in soup.select('a.downloadline'):
+            if tag['href'].endswith(('.zip', '.exe')):
+                downloads.append(urljoin(download_link, tag['href']))
+        return {'name': name.strip(),
+                'version': version[1:].strip(),
+                'url': downloads}
+    except TypeError as err:
+        logger.error(err)
+        pass
 
 
 def check_translations(translations):
@@ -121,28 +118,29 @@ def check_translations(translations):
 
 def get_translations(download_link):
     """
-
+    Get all translations details
     :param download_link:
     :return:
     """
-    global translations
-    if download_link not in exemption_link:
-        soup = request_get(download_link)
-        identifier = soup.find_all("tr", class_="utiltableheader")[-1]
-        if identifier is not None:
-            table = identifier.find_parent("table")
-            row = table.find_all("tr")[1:]  # [1:] to disregard the table header
-            translations = []
-            for item in row:
-                language = item.find_all("td")[0].find("a").get("href")  # [0] first column
-                version = item.find_all("td")[-1].text.replace("\n", "")  # [-1] last column
-                translation_details = {"language": urljoin(download_link, language),
-                                       "version": version}
-                check_translations(translation_details)
-                translations.append(translation_details)
-        else:
-            pass
+    soup = request_get(download_link)
+    translations = []
+    try:
+        table = soup.select('tr.utiltableheader')[-1].find_parent('table')
+        table_rows = table.find_all('tr')[1:]
+        for row in table_rows:
+            table_data = row.find_all('td')
+            try:
+                translation = table_data[0].select_one('a')['href'].split('/')[-1]
+                translation_version = table_data[-1].text.strip()
+                link = urljoin(download_link, row.contents[0].next['href'])
+                translations.append({'translation': translation,
+                                     'translation_version': translation_version,
+                                     'link': link})
+            except TypeError as err:
+                logger.error(err)
         return translations
+    except IndexError:
+        pass
 
 
 def send_to_webservice(directory):
@@ -154,7 +152,7 @@ def send_to_webservice(directory):
     file = os.path.basename(directory)
     data = {"file": (file, open(directory, 'rb'))}
     logger.info(f"Uploading file {file} to web service API")
-    response = requests.post("http://127.0.0.1:5000/safe_files/",
+    response = requests.post(f"http://{hostname}:{api_port}/safe_files/",
                              files=data)  # POST to the webservice
     logger.info(f"Response: {response.status_code}")
     return response.status_code
@@ -223,6 +221,6 @@ if __name__ == '__main__':
     hostname = config['database']['hostname']
     username = config['database']['username']
     port = config['database']['port']
+    api_port = config['webservice']['port']
     db_name = config['database']['db_name']
-    exemption_link = ["http://54.174.36.110/utils/internet_explorer_cookies_view.html"]
-    main(base_url)
+    main("http://nirsoft.net")
