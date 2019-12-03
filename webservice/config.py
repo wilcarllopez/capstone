@@ -6,6 +6,8 @@ dotenv_path = join(dirname(__file__), '.env')
 load_dotenv(dotenv_path)
 
 SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+
 class Development(object):
     """
     Development environment configuration
@@ -23,7 +25,6 @@ class Production(object):
     DEBUG = False
     TESTING = False
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
-
 
 
 app_config = {
