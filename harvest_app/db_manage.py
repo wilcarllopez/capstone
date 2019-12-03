@@ -1,3 +1,4 @@
+import configparser
 import logging
 import logging.config
 import os
@@ -7,6 +8,9 @@ import yaml
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 logger = logging.getLogger(__name__)
+config = configparser.ConfigParser()
+path = os.path.abspath(os.path.dirname(__file__))
+config.read(f"{path}{os.sep}config.ini")
 
 
 def setup_logging(default_path='logging_config.yml', default_level=logging.INFO, env_key='LOG_CFG'):
@@ -59,7 +63,7 @@ def create_db(user, password, host, port, dbname ):
 
 
 def establish_connection(user, password, host, port, dbname):
-    create_db(user, password, host, port, dbname )
+    create_db(user, password, host, port, dbname)
     connection = psycopg2.connect(user=user,
                                   password=password,
                                   host=host,
@@ -73,10 +77,10 @@ def create_table_details(user, password, host, port, dbname):
         connection = establish_connection(user, password, host, port, dbname)
         connection.autocommit = True
         cursor = connection.cursor()
-        create_table_query = '''CREATE TABLE IF NOT EXISTS downloadpages
+        create_table_query = '''CREATE TABLE IF NOT EXISTS {}
               (ID SERIAL PRIMARY KEY     NOT NULL,
               Name           VARCHAR    NOT NULL,
-              Version        VARCHAR); '''
+              Version        VARCHAR); '''.format(config['database']['tb_details'])
 
         cursor.execute(create_table_query)
         cursor.close()
@@ -90,9 +94,9 @@ def create_table_links(user, password, host, port, dbname):
         connection = establish_connection(user, password, host, port, dbname)
         connection.autocommit = True
         cursor = connection.cursor()
-        create_table_query = '''CREATE TABLE IF NOT EXISTS downloadlinks
-              (ID SERIAL PRIMARY KEY     NOT NULL,
-              Link         VARCHAR    NOT NULL); '''
+        create_table_query = f'''CREATE TABLE IF NOT EXISTS {config['database']['tb_download']}
+                             (ID SERIAL PRIMARY KEY     NOT NULL,
+                                           Link         VARCHAR    NOT NULL);'''
         cursor.execute(create_table_query)
         cursor.close()
         connection.close()
@@ -105,10 +109,10 @@ def create_table_translations(user, password, host, port, dbname):
         connection = establish_connection(user, password, host, port, dbname)
         connection.autocommit = True
         cursor = connection.cursor()
-        create_table_query = '''CREATE TABLE IF NOT EXISTS downloadtranslations
+        create_table_query = '''CREATE TABLE IF NOT EXISTS {}
               (ID SERIAL PRIMARY KEY     NOT NULL,
               Link         VARCHAR    NOT NULL,
-              Version      VARCHAR    NOT NULL); '''
+              Version      VARCHAR    NOT NULL); '''.format(config['database']['tb_translation'])
         cursor.execute(create_table_query)
         cursor.close()
         connection.close()
@@ -123,7 +127,7 @@ def insert_links(user, password, host, port, dbname, link):
         connection = establish_connection(user, password, host, port, dbname)
         connection.autocommit = True
         cursor = connection.cursor()
-        insert_query = "INSERT INTO downloadlinks (Link)" \
+        insert_query = "INSERT INTO {config['database']['download']} (Link)" \
                        " VALUES(%s)"
         cursor.execute(insert_query, (link,))
         cursor.close()
@@ -132,32 +136,32 @@ def insert_links(user, password, host, port, dbname, link):
         logger.error('Error while connecting to PostgreSQL: ' + str(error), exc_info=True)
 
 
-def insert_details(user, password, host, port, dbname, dl_dict):
+def insert_details(user, password, host, port, dbname, dict):
     try:
         create_table_details(user, password, host, port, dbname)
         connection = establish_connection(user, password, host, port, dbname)
         connection.autocommit = True
         connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         cursor = connection.cursor()
-        insert_query = "INSERT INTO downloadpages(Name, Version)" \
-                       " VALUES(%(name)s,%(version)s)"
-        cursor.execute(insert_query, dl_dict)
+        insert_query = "INSERT INTO {}(Name, Version)" \
+                       " VALUES(%(name)s,%(version)s)".format(config['database']['tb_details'])
+        cursor.execute(insert_query, dict)
         cursor.close()
         connection.close()
     except (Exception, psycopg2.Error) as error:
         logger.error('Error while connecting to PostgreSQL: ' + str(error), exc_info=True)
 
 
-def insert_translations(user, password, host, port, dbname, translation_dict):
+def insert_translations(user, password, host, port, dbname, dict):
     try:
         create_table_details(user, password, host, port, dbname)
         connection = establish_connection(user, password, host, port, dbname)
         connection.autocommit = True
         connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         cursor = connection.cursor()
-        insert_query = "INSERT INTO downloadtranslations(Link, Version)" \
-                       " VALUES(%(language)s,%(version)s)"
-        cursor.execute(insert_query, translation_dict)
+        insert_query = "INSERT INTO {}(Link, Version)" \
+                       " VALUES(%(language)s,%(version)s)".format(config['database']['tb_translation'])
+        cursor.execute(insert_query, dict)
         cursor.close()
         connection.close()
     except (Exception, psycopg2.Error) as error:
@@ -165,13 +169,13 @@ def insert_translations(user, password, host, port, dbname, translation_dict):
 
 
 #  READ
-def select_links(user, password, host, port, dbname, link):  # check if the link is already in the table 'downloadlinks'
+def select_links(user, password, host, port, dbname, link):  # check if the link is already in the table '{config['database']['download']}'
     try:
         create_table_links(user, password, host, port, dbname)
         connection = establish_connection(user, password, host, port, dbname)
         connection.autocommit = True
         cursor = connection.cursor()
-        search_query = "SELECT * FROM downloadlinks WHERE Link = '{}'".format(link)
+        search_query = f"SELECT * FROM {config['database']['tb_download']} WHERE Link = '{link}'"
         cursor.execute(search_query)
         result = cursor.fetchone()
         if result is None:
@@ -192,7 +196,7 @@ def select_all_links(user, password, host, port, dbname):
         connection = establish_connection(user, password, host, port, dbname)
         connection.autocommit = True
         cursor = connection.cursor()
-        search_query = "SELECT * FROM downloadlinks"
+        search_query = f"SELECT * FROM {config['database']['tb_download']}"
         cursor.execute(search_query)
         links_list = [r[1] for r in cursor.fetchall()]
         cursor.close()
@@ -202,14 +206,16 @@ def select_all_links(user, password, host, port, dbname):
         logger.error('Error while connecting to PostgreSQL: ' + str(error), exc_info=True)
 
 
-def select_details(user, password, host, port, dbname, detail_dict):
+def select_details(user, password, host, port, dbname, dict):
     try:
         create_table_details(user, password, host, port, dbname)
         connection = establish_connection(user, password, host, port, dbname)
         connection.autocommit = True
         cursor = connection.cursor()
-        search_query = "SELECT * FROM downloadpages WHERE Name='{}' and Version ='{}'".format(detail_dict["name"],
-                                                                                              detail_dict["version"])
+        search_query = "SELECT * FROM {} WHERE Name='{}' and Version ='{}'".\
+            format(config['database']['tb_details'],
+                   dict["name"],
+                   dict["version"])
         cursor.execute(search_query)
         result = cursor.fetchone()
         if result is None:
@@ -224,16 +230,16 @@ def select_details(user, password, host, port, dbname, detail_dict):
         logger.error('Error while connecting to PostgreSQL: ' + str(error), exc_info=True)
 
 
-def select_translations(user, password, host, port, dbname, translation_dict):
+def select_translations(user, password, host, port, dbname, dict):
     try:
         create_table_translations(user, password, host, port, dbname )
         connection = establish_connection(user, password, host, port, dbname)
         connection.autocommit = True
         cursor = connection.cursor()
         search_query = "SELECT * " \
-                       "FROM downloadtranslations " \
-                       "WHERE Link='{}' and Version ='{}'".format(translation_dict["language"],
-                                                                  translation_dict["version"])
+                       "FROM {} " \
+                       "WHERE Link='{}' and Version ='{}'".format(config['database']['tb_translation'],dict["language"],
+                                                                  dict["version"])
         cursor.execute(search_query)
         result = cursor.fetchone()
         if result is None:

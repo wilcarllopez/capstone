@@ -2,10 +2,8 @@ FROM python:3.7
 
 WORKDIR /app
 COPY . /app
-RUN pip install gunicorn
+RUN pip install pipenv
 COPY Pipfile* /tmp/
-RUN pip install -r requirements.txt
-RUN chmod u+x ./scripts/initialize.sh
-RUN ./scripts/initialize.sh
-EXPOSE 8000
-CMD ["python", "harvest.py"]
+RUN cd /tmp &&  pipenv lock --requirements > requirements.txt
+RUN pip install -r /tmp/requirements.txt
+CMD ["/bin/bash"]

@@ -188,11 +188,12 @@ def main(base_url):
     for url in ul.find_all("a", href=True, recursive=True):
         link = url.get('href')
         if "http" not in link and db.select_links(username, password, hostname, port, db_name, link):
-            download_link = urljoin(base_url, link)
-            logger.info(f"Found the download link {download_link}")
-            download_links.append(download_link)  # get details of download pages then save to list
-            db.insert_links(username, password, hostname, port, db_name, link)
+                download_link = urljoin(base_url, link)
+                logger.info(f"Found the download link {download_link}")
+                download_links.append(download_link)  # get details of download pages then save to list
+                db.insert_links(username, password, hostname, port, db_name, link)
         else:
+            logger.info("No new download_links")
             pass
     for link in download_links:
         check_version(link)
