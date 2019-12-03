@@ -53,9 +53,9 @@ def download_file(url, filename):
         send_to_webservice(directory)
 
 
-def get_all_downloadable(download_page_link):
-    soup = request_get(download_page_link)
-    name_version = get_details(download_page_link)
+def get_all_downloadable(download_link):
+    soup = request_get(download_link)
+    name_version = get_details(download_link)
     db.insert_details(username, password, hostname, db_name, name_version)
     download_links = []
     extension = ["zip","exe"]
@@ -69,24 +69,24 @@ def get_all_downloadable(download_page_link):
     return downloadable_files
 
 
-def check_version(download_page_link):
+def check_version(download_link):
     """
     Checks the version of the download link
-    :param download_page_link:
+    :param download_link:
     :return:
     """
-    name_version = get_details(download_page_link)
+    name_version = get_details(download_link)
     if db.select_details(username, password, hostname, db_name, name_version):
         logger.info("Found new file, preparing to download")
-        get_all_downloadable(download_page_link)
+        get_all_downloadable(download_link)
         return True
     else:
         logger.info("File is updated")
         return False
 
 
-def get_details(download_page_link):
-    soup = request_get(download_page_link)
+def get_details(download_link):
+    soup = request_get(download_link)
     search_regex = "v[0-9]*\.[0-9]*"
     details = soup.find(text=re.compile(search_regex))
     name_version = details.split("-")[0]
@@ -110,15 +110,15 @@ def check_translations(translations):
     return True
 
 
-def get_translations(download_page_link):
+def get_translations(download_link):
     """
 
-    :param download_page_link:
+    :param download_link:
     :return:
     """
     global translations
-    if download_page_link not in exemption_link:
-        soup = request_get(download_page_link)
+    if download_link not in exemption_link:
+        soup = request_get(download_link)
         identifier = soup.find_all("tr", class_="utiltableheader")[-1]
         if identifier is not None:
             table = identifier.find_parent("table")
@@ -148,10 +148,10 @@ def get_links(base_url):
     ul = soup.find("ul")
     for url in ul.find_all("a", href=True, recursive=True):
         if "http" not in url.get('href') \
-                and db.select_links(username, password, hostname, db_name, url['href']):
+                and db.select_links(username, password, hostname, db_name, url.get('href')):
             download_link = urljoin(base_url, url.get('href'))
             download_links.append(download_link)
-            logger.info(f"Found the download link {fullpath}")
+            logger.info(f"Found the download link {download_link}")
             db.insert_links(username, password, hostname, db_name, url.get('href'))
 
     for link in download_links:
@@ -209,7 +209,8 @@ def main(base_url):
     ul = soup.find("ul")
     download_links = []
     for url in ul.find_all("a", href=True, recursive=True):
-        if "http" not in url.get('href') and db.select_links(username, password, hostname, db_name, url.get('href')):
+        if "http" not in url.get('href') and \
+                db.select_links(username, password, hostname, db_name, url.get('href')):
             download_link = urljoin(base_url, url.get('href'))
             logger.info(f"Found the download link {download_link}")
             download_links.append(download_link)  # get details of download pages then save to list
