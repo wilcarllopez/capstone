@@ -1,6 +1,7 @@
 from marshmallow import fields, Schema
 from . import db
 
+
 class FileModel(db.Model):
     __tablename__ = 'safe_files'
     file_id = db.Column(db.Integer, primary_key=True)
@@ -13,9 +14,9 @@ class FileModel(db.Model):
     def __init__(self, data):
         self.filename = data.get('filename')
         self.size = data.get('size')
-        self.filename = data.get('sha1')
-        self.filename = data.get('md5')
-        self.filename = data.get('filetypes')
+        self.sha1 = data.get('sha1')
+        self.md5 = data.get('md5')
+        self.filetypes = data.get('filetypes')
 
     def save(self):
         db.session.add(self)
@@ -38,6 +39,7 @@ class FileModel(db.Model):
     def get_one_file_md5(md5):
         return FileModel.query.filter(FileModel.md5 == md5).first()
 
+    @staticmethod
     def get_one_file_sha(sha1):
         return FileModel.query.filter(FileModel.sha1 == sha1).first()
 

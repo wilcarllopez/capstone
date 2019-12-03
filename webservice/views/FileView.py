@@ -1,8 +1,6 @@
-import configparser
 import hashlib
 import os
 import pathlib
-import urllib.request
 from flask import request, jsonify, Blueprint
 from werkzeug.utils import secure_filename
 from models.FileModel import FileModel, FileSchema
@@ -10,7 +8,8 @@ from models.FileModel import FileModel, FileSchema
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'exe', 'zip'}
 
 file_api = Blueprint('safe_files', __name__)
-file_schema = FileSchema
+file_schema = FileSchema()
+
 
 def allowed_file(filename):
     """
@@ -18,7 +17,22 @@ def allowed_file(filename):
     :param filename:
     :return: Sliced filename with allowed extension
     """
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def delete_file(file):
+    """
+    Deletes file
+    :param file: File directory
+    :return:
+    """
+    path = f"{os.path.abspath(os.path.dirname(__name__))}" \
+           f"{os.sep}uploads{os.sep}{file}"
+    if os.path.exists(path):
+        os.remove(path)
+    else:
+        return jsonify({'Message': "File doesn't exists"})
 
 
 def sha1_hash(filepath):
@@ -37,10 +51,11 @@ def sha1_hash(filepath):
     sha1 = hasher.hexdigest()
     return sha1
 
+
 def md5_hash(filepath):
     """
     Hashing the file through MD5
-    :param filepath:
+    :param filepath: File directory
     :return md5:
     """
     blocksize = 65536
@@ -67,26 +82,32 @@ def create():
         resp.status_code = 400
         return resp
     if file and allowed_file(file.filename):
-        directory = f"{os.path.abspath(os.path.dirname(__name__))}{os.sep}uploads"
+        directory = f"{os.path.abspath(os.path.dirname(__name__))}" \
+                    f"{os.sep}uploads"
         filename = secure_filename(file.filename)
-        binary = file.read()
-        file.save(f"{directory}{os.sep}{filename}")
-        filepath = f"{directory}{os.sep}{filename}"
-        md5 = md5_hash(filepath)
-        sha = sha1_hash(filepath)
-        data = file_schema.load(file)
+        file.save(f"{directory}{os.sep}{filename}")  # downloading the file
+        filepath = f"{directory}{os.sep}{filename}"  # directory of the file
+        md5 = md5_hash(filepath)  # md5 hashing file
+        sha = sha1_hash(filepath)  # sha1 hashing file
+        metadata = {"filename": filename,
+                    "size": str(os.stat(filepath).st_size),
+                    "sha1": sha,
+                    "md5": md5,
+                    "filetypes": pathlib.Path(filepath).suffix
+                    }
+        req_data = FileModel.get_one_file_sha(sha)
+        if req_data:
+            os.remove(filepath)
+            jsonify({'Error': 'The file is duplicate'})
+        data = file_schema.load(metadata)
         files = FileModel(data)
-        files.save(metadata={"filename": filename,
-                             "size": os.path.getsize(filepath),
-                             "sha1": sha, "md5": md5,
-                             "filetypes": pathlib.Path(filepath).suffix
-                             }
-                   )
+        files.save()
         resp = jsonify({'Message': 'File successfully uploaded'})
         resp.status_code = 201
         return resp
     else:
-        resp = jsonify({'Message': 'Allowed file types are txt, pdf, png, jpg, jpeg, gif'})
+        resp = jsonify({'Message': 'Allowed file '
+                                   'types are txt, pdf, png, jpg, jpeg, gif'})
         resp.status_code = 400
         return resp
 
@@ -140,17 +161,23 @@ def update2(sha1):
 
 @file_api.route('/<string:md5>', methods=['DELETE'])
 def delete(md5):
-    file = FileModel.get_one_file(md5)
+    file = FileModel.get_one_file_md5(md5)
     if not file:
         return jsonify({'Error': 'File not found'}, 404)
+    ser_file = file_schema.dump(file)
     file.delete()
+    filename = ser_file['filename']
+    delete_file(filename)
     return jsonify({'Message': 'File deleted'}, 201)
 
 
 @file_api.route('/<string:sha1>', methods=['DELETE'])
 def delete2(sha1):
-    file = FileModel.get_one_file(sha1)
+    file = FileModel.get_one_file_sha(sha1)
     if not file:
         return jsonify({'Error': 'File not found'}, 404)
+    ser_file = file_schema.dump(file)
     file.delete()
+    filename = ser_file['filename']
+    delete_file(filename)
     return jsonify({'Message': 'File deleted'}, 201)

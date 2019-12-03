@@ -1,9 +1,11 @@
 FROM python:3.7
-ADD . /app
+
 WORKDIR /app
-RUN pip install pipenv gunicorn
+COPY . /app
+RUN pip install gunicorn
 COPY Pipfile* /tmp/
 RUN pip install -r requirements.txt
-
+RUN chmod u+x ./scripts/initialize.sh
+RUN ./scripts/initialize.sh
 EXPOSE 8000
-CMD ["python","run.py"]
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "app:app"]
