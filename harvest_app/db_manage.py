@@ -77,10 +77,11 @@ def create_table_details(user, password, host, port, dbname):
         connection = connect(user, password, host, port, dbname)
         connection.autocommit = True
         cursor = connection.cursor()
-        create_table_query = '''CREATE TABLE IF NOT EXISTS {}
+        create_table_query = f'''CREATE TABLE IF NOT EXISTS {config['database']['tb_details']}
               (ID SERIAL PRIMARY KEY     NOT NULL,
               Name           VARCHAR    NOT NULL,
-              Version        VARCHAR); '''.format(config['database']['tb_details'])
+              Version        VARCHAR,
+              URL VARCHAR NOT NULL); '''
 
         cursor.execute(create_table_query)
         cursor.close()
@@ -109,10 +110,10 @@ def create_table_translations(user, password, host, port, dbname):
         connection = connect(user, password, host, port, dbname)
         connection.autocommit = True
         cursor = connection.cursor()
-        create_table_query = '''CREATE TABLE IF NOT EXISTS {}
+        create_table_query = f'''CREATE TABLE IF NOT EXISTS {config['database']['tb_translation']}
               (ID SERIAL PRIMARY KEY     NOT NULL,
               Link         VARCHAR    NOT NULL,
-              Version      VARCHAR    NOT NULL); '''.format(config['database']['tb_translation'])
+              Version      VARCHAR    NOT NULL); '''
         cursor.execute(create_table_query)
         cursor.close()
         connection.close()
@@ -126,8 +127,7 @@ def insert_links(user, password, host, port, dbname, link):
         connection = connect(user, password, host, port, dbname)
         connection.autocommit = True
         cursor = connection.cursor()
-        insert_query = "INSERT INTO {config['database']['download']} (Link)" \
-                       " VALUES(%s)"
+        insert_query = f'''INSERT INTO {config['database']['download']} (Link) VALUES(%s)'''
         cursor.execute(insert_query, (link,))
         cursor.close()
         connection.close()
@@ -143,7 +143,7 @@ def insert_details(user, password, host, port, dbname, dict):
         connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         cursor = connection.cursor()
         insert_query = "INSERT INTO {}(Name, Version)" \
-                       " VALUES(%(name)s,%(version)s)".format(config['database']['tb_details'])
+                       " VALUES(%(name)s,%(version)s,%(url)s)".format(config['database']['tb_details'])
         cursor.execute(insert_query, dict)
         cursor.close()
         connection.close()

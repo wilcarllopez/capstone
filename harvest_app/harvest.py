@@ -19,7 +19,6 @@ def request_get(url):
     :param url: URL provided
     :return soup: parsed text
     """
-    soup = ""
     try:
         resource = requests.get(url)
         resource.raise_for_status()
@@ -87,13 +86,24 @@ def check_version(download_link):
 
 def get_details(download_link):
     soup = request_get(download_link)
-    search_regex = "v[0-9]*\.[0-9]*"
-    details = soup.find(text=re.compile(search_regex))
-    name_version = details.split("-")[0]
-    index = re.search(search_regex, name_version)
-    name = name_version[0:index.start()].replace("\n", "").rsplit()
-    version = name_version[index.start():].replace("\n", "").rsplit()
-    return {"name": name, "version": version}
+    # search_regex = "v[0-9]*\.[0-9]*"
+    # details = soup.find(text=re.compile(search_regex))
+    # name_version = details.split("-")[0]
+    # index = re.search(search_regex, name_version)
+    # name = name_version[0:index.start()].replace("\n", "").rsplit()
+    # version = name_version[index.start():].replace("\n", "").rsplit()
+    # return {"name": name, "version": version}
+    downloads = []
+    string = soup.find(string=re.compile('v[0-9]*\.[0-9]*'))
+    search = re.search(re.compile('v[0-9]*\.[0-9]*'), string)
+    version = search.group(0)
+    name = string[:search.start()]
+    for tag in soup.select('a.downloadline'):
+        if tag['href'].endswith(('.zip', '.exe')):
+            downloads.append(urljoin(download_link, tag['href']))
+    return {'name': name.strip(),
+            'version': version[1:].strip(),
+            'url': downloads}
 
 
 def check_translations(translations):
@@ -126,7 +136,6 @@ def get_translations(download_link):
             for item in row:
                 language = item.find_all("td")[0].find("a").get("href")  # [0] first column
                 version = item.find_all("td")[-1].text.replace("\n", "")  # [-1] last column
-                # link = download_link
                 translation_details = {"language": urljoin(download_link, language),
                                        "version": version}
                 check_translations(translation_details)
@@ -190,11 +199,12 @@ def main(base_url):
         if "http" not in link and db.select_links(username, password, hostname, port, db_name, link):
                 download_link = urljoin(base_url, link)
                 logger.info(f"Found the download link {download_link}")
-                download_links.append(download_link)  # get details of download pages then save to list
+                download_links.append(download_link)
                 db.insert_links(username, password, hostname, port, db_name, link)
         else:
             logger.info("No new download_links")
             pass
+
     for link in download_links:
         check_version(link)
         get_translations(link)
