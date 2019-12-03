@@ -12,14 +12,6 @@ from bs4 import BeautifulSoup
 from requests import get
 from urllib.parse import urljoin
 
-config = configparser.ConfigParser()
-path = os.path.abspath(os.path.dirname(__file__))
-config.read(f"{path}{os.sep}config.ini")
-password = config['database']['password']
-hostname = config['database']['hostname']
-username = config['database']['username']
-db_name = config['database']['db_name']
-
 
 def request_get(url):
     """
