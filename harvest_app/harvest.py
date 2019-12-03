@@ -19,6 +19,7 @@ def request_get(url):
     :param url: URL provided
     :return soup: parsed text
     """
+    soup = ""
     try:
         resource = requests.get(url)
         resource.raise_for_status()
@@ -48,25 +49,26 @@ def download_file(url, filename):
         logger.info(f"Downloading file {filename} from {url}")
         with open(directory, 'wb') as file:
             file.write(response.content)
-        logger.info("Download complete")
-        logger.info("Uploading downloaded files to webservice")
+        logger.info(f"Downloaded {filename}")
         send_to_webservice(directory)
 
 
 def get_all_downloadable(download_link):
     soup = request_get(download_link)
     name_version = get_details(download_link)
-    db.insert_details(username, password, hostname, db_name, name_version)
+    db.insert_details(username, password, hostname, port, db_name, name_version)
     download_links = []
-    extension = ["zip","exe"]
-    for file in soup.find_all("a", {"class": "downloadline"}):
+    extension = ["zip", "exe"]
+    for file in soup.find_all("a", href=True):
         link = file.get("href")
-        if link.split(".")[-1] in extension:
-            dl_link = urljoin(download_link, file.get("href"))
-            download_links.append(dl_link)
-            download_file(dl_link, dl_link.rsplit("/", 1)[-1])
+        filename = link.split(".")[-1]
+        for ext in extension:
+            if ext in filename:
+                dl_link = urljoin(download_link, link)
+                download_links.append(dl_link)
+                download_file(dl_link, dl_link.rsplit("/", 1)[-1])
 
-    return downloadable_files
+    return download_links
 
 
 def check_version(download_link):
@@ -76,12 +78,10 @@ def check_version(download_link):
     :return:
     """
     name_version = get_details(download_link)
-    if db.select_details(username, password, hostname, db_name, name_version):
-        logger.info("Found new file, preparing to download")
+    if db.select_details(username, password, hostname, port, db_name, name_version):
         get_all_downloadable(download_link)
         return True
     else:
-        logger.info("File is updated")
         return False
 
 
@@ -102,12 +102,11 @@ def check_translations(translations):
     :param translations:
     :return:
     """
-    if db.select_translations(username, password, hostname, db_name, translations):
+    if db.select_translations(username, password, hostname, port, db_name, translations):
         download_link = translations['language']
         version = translations['version']
         download_file(download_link, download_link.rsplit('/', 1)[-1])
-        db.insert_translations(username, password, hostname, db_name, version)
-    return True
+        db.insert_translations(username, password, hostname, port, db_name, version)
 
 
 def get_translations(download_link):
@@ -137,29 +136,6 @@ def get_translations(download_link):
         return translations
 
 
-def get_links(base_url):
-    """
-
-    :param base_url:
-    :return download_links: List of download links
-    """
-    soup = request_get(base_url)
-    download_links = []
-    ul = soup.find("ul")
-    for url in ul.find_all("a", href=True, recursive=True):
-        if "http" not in url.get('href') \
-                and db.select_links(username, password, hostname, db_name, url.get('href')):
-            download_link = urljoin(base_url, url.get('href'))
-            download_links.append(download_link)
-            logger.info(f"Found the download link {download_link}")
-            db.insert_links(username, password, hostname, db_name, url.get('href'))
-
-    for link in download_links:
-        check_version(link)
-        get_translations(link)
-    return download_links
-
-
 def send_to_webservice(directory):
     """
     Sends the downloaded file to the web-service
@@ -168,6 +144,7 @@ def send_to_webservice(directory):
     """
     file = os.path.basename(directory)
     data = {"file": (file, open(directory, 'rb'))}
+    logger.info(f"Uploading file {file} to web service API")
     response = requests.post("http://127.0.0.1:5000/safe_files/",
                              files=data)  # POST to the webservice
     logger.info(f"Response: {response.status_code}")
@@ -209,13 +186,14 @@ def main(base_url):
     ul = soup.find("ul")
     download_links = []
     for url in ul.find_all("a", href=True, recursive=True):
-        if "http" not in url.get('href') and \
-                db.select_links(username, password, hostname, db_name, url.get('href')):
-            download_link = urljoin(base_url, url.get('href'))
+        link = url.get('href')
+        if "http" not in link and db.select_links(username, password, hostname, port, db_name, link):
+            download_link = urljoin(base_url, link)
             logger.info(f"Found the download link {download_link}")
             download_links.append(download_link)  # get details of download pages then save to list
-            db.insert_links(username, password, hostname, db_name, url.get('href'))
-
+            db.insert_links(username, password, hostname, port, db_name, link)
+        else:
+            pass
     for link in download_links:
         check_version(link)
         get_translations(link)
@@ -228,10 +206,12 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     path = os.path.abspath(os.path.dirname(__file__))
     config.read(f"{path}{os.sep}config.ini")
+
+    base_url = config['default']['harvest_url']
     password = config['database']['password']
     hostname = config['database']['hostname']
     username = config['database']['username']
+    port = config['database']['port']
     db_name = config['database']['db_name']
-    base_url = config['default']['harvest_url']
     exemption_link = ["http://54.174.36.110/utils/internet_explorer_cookies_view.html"]
     main(base_url)
