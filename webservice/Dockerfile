@@ -7,6 +7,5 @@ RUN cd /tmp &&  pipenv lock --requirements > requirements.txt
 RUN pip install -r /tmp/requirements.txt
 RUN mkdir ./uploads
 RUN chmod u+x ./scripts/initialize.sh
-RUN ./scripts/initialize.sh
 EXPOSE 8000
 CMD ["./scripts/initialize.sh"]
