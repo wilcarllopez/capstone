@@ -1,4 +1,4 @@
--i https://pypi.org/simple
+-i https://pypi.org/simple/
 beautifulsoup4==4.8.1
 certifi==2019.9.11
 chardet==3.0.4
@@ -8,4 +8,4 @@ psycopg2==2.8.4
 pyyaml==5.1.2
 requests==2.22.0
 soupsieve==1.9.5
-urllib3==1.25.7
+urllib3==1.25.8
