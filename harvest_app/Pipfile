@@ -9,7 +9,7 @@ verify_ssl = true
 beautifulsoup4 = "==4.8.1"
 requests = "==2.22.0"
 psycopg2 = "==2.8.4"
-certifi = "==2019.9.11"
+certifi = "==2022.12.7"
 chardet = "==3.0.4"
 idna = "==2.8"
 soupsieve = "==1.9.5"
